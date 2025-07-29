@@ -47,7 +47,7 @@ def draw_ellipse(ax, x, y, color="lightcoral"):
 # -------------------- 主逻辑 -------------------- #
 if run_btn:
     with st.spinner("Loading model & scalers …"):
-        model   = load_model("checkpoints/MTWAE_latent8.pth", device="cpu")
+        model   = load_model("MTWAE_latent8.pth", device="cpu")
         scalers = load_scalers("scalers")
 
     st.success("Loaded. Starting NSGA‑III …")
