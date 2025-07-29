@@ -38,22 +38,27 @@ class MTDesignProblem(Problem):
 
     # 核心评估函数 -------------------------------------------------------- #
     def _evaluate(self, X, out, *_):
-        z = torch.from_numpy(X).float()
+        # ---- 1. 设备对齐 ----
+        device = next(self._model.parameters()).device
+        z = torch.from_numpy(X).float().to(device)
+    
         with torch.no_grad():
-            Bs = self._model.head_Bs(z).cpu().numpy()
-            lnHc = self._model.head_Hc(z).cpu().numpy()
-            Dc = self._model.head_Dc(z).cpu().numpy()
-
-        # 逆标准化
-        Bs = self._scalers["Bs"].inverse_transform(Bs)
+            Bs  = self._model.head_Bs(z).cpu().numpy()      # (n,1)
+            lnHc = self._model.head_Hc(z).cpu().numpy()     # (n,1)
+            Dc  = self._model.head_Dc(z).cpu().numpy()      # (n,1)
+    
+        # ---- 2. 逆标准化（保持 2‑D）----
+        Bs  = self._scalers["Bs"].inverse_transform(Bs)
         lnHc = self._scalers["Hc"].inverse_transform(lnHc)
-        Dc = self._scalers["Dc"].inverse_transform(Dc)
+        Dc  = self._scalers["Dc"].inverse_transform(Dc)
+    
+        # ---- 3. 结果写入 ----
+        out["F"] = np.hstack([-Bs, lnHc, -Dc]).astype(np.float64)  # (n,3)
+        # 若想在后处理中用到原值，可一并存
+        out["Bs_raw"]  = Bs.ravel()
+        out["lnHc_raw"] = lnHc.ravel()
+        out["Dc_raw"]  = Dc.ravel()
 
-        out["F"] = np.column_stack([-Bs, lnHc, -Dc])        # nsga‑③ => 全部最小化
-        # 额外保存原始值，后处理时直接使用
-        out["Bs_raw"] = Bs
-        out["lnHc_raw"] = lnHc
-        out["Dc_raw"] = Dc
 
 
 # ------------------------- 对外优化接口 --------------------------------- #
