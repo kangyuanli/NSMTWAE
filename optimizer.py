@@ -37,27 +37,31 @@ class MTDesignProblem(Problem):
         self._scalers = scalers
 
     # 核心评估函数 -------------------------------------------------------- #
-    def _evaluate(self, X, out, *_):
-        # ---- 1. 设备对齐 ----
-        device = next(self._model.parameters()).device
-        z = torch.from_numpy(X).float().to(device)
+    def _evaluate(self, X, out, *args, **kwargs):
+        import streamlit as st, traceback, numpy as np, torch
     
-        with torch.no_grad():
-            Bs  = self._model.head_Bs(z).cpu().numpy()      # (n,1)
-            lnHc = self._model.head_Hc(z).cpu().numpy()     # (n,1)
-            Dc  = self._model.head_Dc(z).cpu().numpy()      # (n,1)
+        try:   # ───────────────────── 正常流程 ──────────────────────────
+            device = next(self._model.parameters()).device
+            z = torch.from_numpy(X).float().to(device)
     
-        # ---- 2. 逆标准化（保持 2‑D）----
-        Bs  = self._scalers["Bs"].inverse_transform(Bs)
-        lnHc = self._scalers["Hc"].inverse_transform(lnHc)
-        Dc  = self._scalers["Dc"].inverse_transform(Dc)
+            with torch.no_grad():
+                Bs   = self._model.head_Bs(z).cpu().numpy()     # (n,1)
+                lnHc = self._model.head_Hc(z).cpu().numpy()     # (n,1)
+                Dc   = self._model.head_Dc(z).cpu().numpy()     # (n,1)
     
-        # ---- 3. 结果写入 ----
-        out["F"] = np.hstack([-Bs, lnHc, -Dc]).astype(np.float64)  # (n,3)
-        # 若想在后处理中用到原值，可一并存
-        out["Bs_raw"]  = Bs.ravel()
-        out["lnHc_raw"] = lnHc.ravel()
-        out["Dc_raw"]  = Dc.ravel()
+            # 保证仍是二维
+            Bs   = self._scalers["Bs"].inverse_transform(Bs)
+            lnHc = self._scalers["Hc"].inverse_transform(lnHc)
+            Dc   = self._scalers["Dc"].inverse_transform(Dc)
+    
+            # 组成目标向量：全部 2‑D → (n,3)
+            out["F"] = np.hstack([-Bs, lnHc, -Dc]).astype(np.float64)
+    
+        except Exception as e:   # ───────── 把真正报错显示到页面 ─────────
+            st.error(f"🚨 _evaluate 出错: {e}")
+            st.code(traceback.format_exc())
+            raise   # 继续抛出，让算法终止
+
 
 
 
