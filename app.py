@@ -19,7 +19,7 @@ run_btn = st.sidebar.button("Run Optimization 🚀")
 if run_btn:
     with st.spinner("Loading model & scalers …"):
         device = "cpu"  # GPU 可改为 "cuda"（若部署机器支持）
-        model = load_model("checkpoints/MTWAE_latent8.pth", device=device)
+        model = load_model("MTWAE_latent8.pth", device=device)
         scalers = load_scalers("scalers")
 
     st.success("Loaded. Starting NSGA‑III …")
