@@ -1,5 +1,5 @@
-streamlit==1.38.0
-torch==2.4.0
+streamlit==1.38.0       # 如需最新版，写 streamlit>=1.38,<2
+torch==2.7.1            # 支持 Python 3.9 – 3.13
 numpy==2.1.0
 pandas==2.2.2
 matplotlib==3.9.2
