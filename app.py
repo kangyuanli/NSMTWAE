@@ -32,7 +32,7 @@ def row_to_formula(row: pd.Series) -> str:
     comps = []
     for elem in ELEMENTS:
         frac = row[elem]
-        if frac > 1e-4:                     # 过滤掉纯 0
+        if frac > 1e-3:                     # 过滤掉纯 0
             comps.append(f"{elem}{frac*100:.2f}")
     return "".join(comps)
 
