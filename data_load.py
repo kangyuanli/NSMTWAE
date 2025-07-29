@@ -15,13 +15,21 @@ def load_scalers(dir_path: str = "scalers"):
     return scalers
 
 
-def load_model(
-    ckpt_path: str = "MTWAE_latent8.pth",
-    device: str | torch.device = "cpu",
-):
+def load_model(ckpt_path="checkpoints/MTWAE_latent8.pth", device="cpu"):
+    from pathlib import Path, PurePosixPath
+    import torch, traceback, sys
     model = MTWAE(in_features=30, latent_size=8)
-    state = torch.load(ckpt_path, map_location=device)
-    model.load_state_dict(state)
+    try:
+        state = torch.load(ckpt_path, map_location=device)
+        model.load_state_dict(state)     # ⚠️ 出错点
+    except Exception as e:
+        # 把真正的报错打印到前端
+        import streamlit as st
+        st.error(f"❌  权重加载失败: {e}")
+        st.caption("完整 traceback ↓")
+        st.code(traceback.format_exc())
+        sys.exit(0)
     model.to(device).eval()
     return model
+
 
