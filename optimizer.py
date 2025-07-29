@@ -1,59 +1,109 @@
-"""
-把 geatpy‑NSGA‑III 优化过程封装成函数，便于 Streamlit 调用。
-"""
+# optimizer.py -----------------------------------------------------------
+import numpy as np
+import torch
+import pandas as pd
 
-import numpy as np, torch, multiprocessing, geatpy as ea, random, os
-from pathlib import Path
-from models import MTWAE
-from data_utils import load_or_build_scalers
+from pymoo.core.problem import Problem
+from pymoo.algorithms.moo.nsga3 import NSGA3
+from pymoo.factory import get_reference_directions, get_termination
+from pymoo.optimize import minimize
+from pymoo.util.non_dominated_sorting import NonDominatedSorting
 
-ROOT = Path(__file__).parent
-MODEL_PATH = ROOT / "Joint_MTWAE_Model_latent_8_sigma_8_epoch_800.pth"
+# ------------------------ 自定义多目标问题 ------------------------------ #
+class MTDesignProblem(Problem):
+    """
+    目标：
+        1) 最大化 Bs      → 转为最小化  -Bs
+        2) 最小化 ln(Hc)
+        3) 最大化 Dc      → 转为最小化  -Dc
+    """
+    def __init__(self, model, scalers, latent_size=8, sigma=8.0):
+        super().__init__(
+            n_var=latent_size,
+            n_obj=3,
+            n_constr=0,
+            xl=np.full(latent_size, -sigma),   # 下界
+            xu=np.full(latent_size,  sigma),   # 上界
+            type_var=np.float32,
+        )
+        self._model = model
+        self._scalers = scalers
 
-# -------------------- 固定随机性 --------------------
-def _set_seed(seed=11):
-    random.seed(seed); np.random.seed(seed); torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
-
-# -------------------- geatpy 问题定义 --------------------
-class NSMTGMProblem(ea.Problem):
-    def __init__(self, model, scalers, sigma=8.0):
-        self.model = model.eval()
-        self.scalers = scalers  # (Bs,Hc,Dc) StandardScaler
-        super().__init__(name='NSMTGM', M=3, Dim=8,
-                         maxormins=[-1, 1, -1],   # Bs↑, lnHc↓, Dc↑
-                         varTypes=[0]*8,
-                         lb=[-sigma]*8, ub=[ sigma]*8,
-                         lbin=[1]*8,    ubin=[1]*8)
-
-    def evalVars(self, Z_np):
-        """Z_np 形状 (N,8) → 返回 shape (N,3) 的目标矩阵"""
-        Z = torch.from_numpy(Z_np).float()
+    # 核心评估函数 -------------------------------------------------------- #
+    def _evaluate(self, X, out, *_):
+        z = torch.from_numpy(X).float()
         with torch.no_grad():
-            Bs = self.model.predict_Bs(Z).numpy()
-            Hc = self.model.predict_Hc(Z).numpy()
-            Dc = self.model.predict_Dc(Z).numpy()
-        Bs = self.scalers[0].inverse_transform(Bs)
-        Hc = self.scalers[1].inverse_transform(Hc)
-        Dc = self.scalers[2].inverse_transform(Dc)
-        return np.hstack([Bs, Hc, Dc])
+            Bs = self._model.head_Bs(z).cpu().numpy()
+            lnHc = self._model.head_Hc(z).cpu().numpy()
+            Dc = self._model.head_Dc(z).cpu().numpy()
 
-# -------------------- 核心接口 --------------------
-def run_nsga3(NIND=200, MAXGEN=500, seed=11):
-    _set_seed(seed)
-    multiprocessing.set_start_method("spawn", force=True)
+        # 逆标准化
+        Bs = self._scalers["Bs"].inverse_transform(Bs)
+        lnHc = self._scalers["Hc"].inverse_transform(lnHc)
+        Dc = self._scalers["Dc"].inverse_transform(Dc)
 
-    # ---- 模型 & scaler ----
-    scalers = load_or_build_scalers()
-    model   = MTWAE()
-    model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu"))
+        out["F"] = np.column_stack([-Bs, lnHc, -Dc])        # nsga‑③ => 全部最小化
+        # 额外保存原始值，后处理时直接使用
+        out["Bs_raw"] = Bs
+        out["lnHc_raw"] = lnHc
+        out["Dc_raw"] = Dc
 
-    problem   = NSMTGMProblem(model, scalers)
-    population = ea.Population(Encoding='RI', NIND=NIND)
-    algorithm  = ea.moea_NSGA3_templet(problem, population,
-                                       MAXGEN=MAXGEN, logTras=10, seed=seed)
 
-    res = ea.optimize(algorithm, verbose=False, outputMsg=False,
-                      saveFlag=False, drawing=0)
-    return res  # dict 结构：{'ObjV','Vars',...}
+# ------------------------- 对外优化接口 --------------------------------- #
+def run_nsga3(
+    model,
+    scalers,
+    pop_size: int = 200,
+    n_gen: int = 100,
+    seed: int = 42,
+    sigma: float = 8.0,
+    periodic_table: list[str] | None = None,
+):
+    """执行 NSGA‑III 优化并返回 *第一条* 非支配前沿及其解码结果。"""
+    problem = MTDesignProblem(model, scalers, latent_size=8, sigma=sigma)
+
+    ref_dirs = get_reference_directions("das-dennis", problem.n_obj, pop_size)
+    algorithm = NSGA3(pop_size=pop_size, ref_dirs=ref_dirs)
+    res = minimize(
+        problem,
+        algorithm,
+        termination=get_termination("n_gen", n_gen),
+        seed=seed,
+        verbose=False,
+        save_history=False,
+    )
+
+    # ---------------------- 非支配筛选 ---------------------------------- #
+    nd_idx = NonDominatedSorting().do(res.F, only_non_dominated_front=True)
+    Z_nd = res.X[nd_idx]
+
+    # 解码到成分空间
+    with torch.no_grad():
+        comps = (
+            model.decoder(torch.from_numpy(Z_nd).float())
+            .cpu()
+            .numpy()
+        )
+
+    # 重新预测以取到标度后的物性
+    with torch.no_grad():
+        z_nd_tensor = torch.from_numpy(Z_nd).float()
+        Bs = scalers["Bs"].inverse_transform(model.head_Bs(z_nd_tensor).numpy()).ravel()
+        lnHc = scalers["Hc"].inverse_transform(model.head_Hc(z_nd_tensor).numpy()).ravel()
+        Dc = scalers["Dc"].inverse_transform(model.head_Dc(z_nd_tensor).numpy()).ravel()
+
+    # 组装 DataFrame
+    elements = periodic_table or [
+        'Fe', 'B', 'Si', 'P', 'C', 'Co', 'Nb', 'Ni', 'Mo', 'Zr',
+        'Ga', 'Al', 'Dy', 'Cu', 'Cr', 'Y', 'Nd', 'Hf', 'Ti', 'Tb',
+        'Ho', 'Ta', 'Er', 'Sn', 'W', 'Tm', 'Gd', 'Sm', 'V', 'Pr'
+    ]
+    df_comp = pd.DataFrame(comps, columns=elements)
+    df_props = pd.DataFrame({
+        "Bs (T)": Bs,
+        "ln(Hc) (A/m)": lnHc,
+        "Hc (A/m)": np.exp(lnHc),
+        "Dc (mm)": Dc,
+    })
+    return pd.concat([df_props, df_comp], axis=1)
+
