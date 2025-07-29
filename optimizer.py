@@ -2,12 +2,19 @@
 import numpy as np
 import torch
 import pandas as pd
+# --- Non‑dominated sorting (版本兼容) -------------------------
+try:
+    # 0.6.1 独有
+    from pymoo.util.non_dominated_sorting import NonDominatedSorting
+except ModuleNotFoundError:
+    # 0.6.0 及 ≥0.7.x
+    from pymoo.util.nds.non_dominated_sorting import NonDominatedSorting
 
 from pymoo.core.problem import Problem
 from pymoo.algorithms.moo.nsga3 import NSGA3
 from pymoo.factory import get_reference_directions, get_termination
 from pymoo.optimize import minimize
-from pymoo.util.non_dominated_sorting import NonDominatedSorting
+#from pymoo.util.non_dominated_sorting import NonDominatedSorting
 
 # ------------------------ 自定义多目标问题 ------------------------------ #
 class MTDesignProblem(Problem):
