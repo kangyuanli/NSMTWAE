@@ -62,7 +62,19 @@ class MTDesignProblem(Problem):
             st.code(traceback.format_exc())
             raise   # 继续抛出，让算法终止
 
-
+def _nearest_valid_population(n_desired: int) -> int:
+    # 预生成到 ~2500 的所有 n_points
+    import math
+    valid = []
+    for H in range(1, 100):
+        n = math.comb(H + 3 - 1, 3 - 1)
+        valid.append(n)
+        if n >= 2500: break
+    # 选 >= n_desired 的最小合法值；若超上限就取最大值
+    for v in valid:
+        if v >= n_desired:
+            return v
+    return valid[-1]
 
 
 # ------------------------- 对外优化接口 --------------------------------- #
@@ -78,8 +90,12 @@ def run_nsga3(
     """执行 NSGA‑III 优化并返回 *第一条* 非支配前沿及其解码结果。"""
     problem = MTDesignProblem(model, scalers, latent_size=8, sigma=sigma)
 
-    ref_dirs = get_reference_directions("das-dennis", problem.n_obj, n_points=pop_size)
-    algorithm = NSGA3(pop_size=pop_size, ref_dirs=ref_dirs)
+    pop_size_valid = _nearest_valid_population(pop_size)
+    ref_dirs = get_reference_directions("das-dennis", 3, n_points=pop_size_valid)
+    algorithm = NSGA3(pop_size=ref_dirs.shape[0], ref_dirs=ref_dirs)
+
+    #ref_dirs = get_reference_directions("das-dennis", problem.n_obj, n_points=pop_size)
+    #algorithm = NSGA3(pop_size=pop_size, ref_dirs=ref_dirs)
     res = minimize(
         problem,
         algorithm,
