@@ -105,8 +105,3 @@ if run_btn:
     st.toast("Done ✔️  You can adjust parameters and re‑run!")
 else:
     st.info("在左侧栏设置参数，点击 **Run Optimization** 开始计算。")
-
-
-    st.toast("Done ✔️  You can adjust parameters and re‑run!")
-else:
-    st.info("在左侧栏设置参数，点击 **Run Optimization** 开始计算。")
