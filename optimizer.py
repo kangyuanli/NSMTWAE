@@ -69,7 +69,7 @@ def run_nsga3(
     """执行 NSGA‑III 优化并返回 *第一条* 非支配前沿及其解码结果。"""
     problem = MTDesignProblem(model, scalers, latent_size=8, sigma=sigma)
 
-    ref_dirs = get_reference_directions("das-dennis", problem.n_obj, pop_size)
+    ref_dirs = get_reference_directions("das-dennis", problem.n_obj, n_points=pop_size)
     algorithm = NSGA3(pop_size=pop_size, ref_dirs=ref_dirs)
     res = minimize(
         problem,
