@@ -15,21 +15,30 @@ def load_scalers(dir_path: str = "scalers"):
     return scalers
 
 
-def load_model(ckpt_path="checkpoints/MTWAE_latent8.pth", device="cpu"):
-    from pathlib import Path, PurePosixPath
-    import torch, traceback, sys
+# data_load.py ----------------------------------------------------------
+def load_model(ckpt_path="MTWAE_latent8.pth", device="cpu"):
+    import torch, re
     model = MTWAE(in_features=30, latent_size=8)
-    try:
-        state = torch.load(ckpt_path, map_location=device)
-        model.load_state_dict(state)     # ⚠️ 出错点
-    except Exception as e:
-        # 把真正的报错打印到前端
-        import streamlit as st
-        st.error(f"❌  权重加载失败: {e}")
-        st.caption("完整 traceback ↓")
-        st.code(traceback.format_exc())
-        sys.exit(0)
-    model.to(device).eval()
-    return model
+
+    raw_state = torch.load(ckpt_path, map_location=device)
+
+    # ---------- 关键：批量替换旧前缀 ----------
+    key_map = {
+        r"^Predicted_Bs_layer\.": "head_Bs.",
+        r"^Predicted_Hc_layer\.": "head_Hc.",
+        r"^Predicted_Dc_layer\.": "head_Dc.",
+    }
+
+    renamed_state = {}
+    for k, v in raw_state.items():
+        new_key = k
+        for pattern, repl in key_map.items():
+            new_key = re.sub(pattern, repl, new_key)
+        renamed_state[new_key] = v
+
+    # 载入
+    model.load_state_dict(renamed_state, strict=True)
+    return model.to(device).eval()
+
 
 
