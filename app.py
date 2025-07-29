@@ -16,7 +16,7 @@ st.title("NSMTGM – Multi‑objective Design of Fe‑based Metallic Glasses")
 st.sidebar.header("Evolutionary Parameters")
 #VALID_POPS = [3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78, 91, 105, 120, 136]
 #NIND = st.sidebar.selectbox("Population size (NSGA‑III valid set)", VALID_POPS, index=VALID_POPS.index(28))
-NIND_raw = st.sidebar.number_input("Desired population size", 10, 2000, 200, 1)
+NIND = st.sidebar.number_input("Desired population size", 10, 2000, 200, 1)
 MAXGEN = st.sidebar.number_input("Generations", 10, 1000, 100, 10)
 SEED = st.sidebar.number_input("Random seed", 0, 9999, 42, 1)
 run_btn = st.sidebar.button("Run Optimization 🚀")
