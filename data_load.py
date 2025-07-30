@@ -7,7 +7,7 @@ from models import MTWAE
 
 
 def load_scalers(dir_path: str = "scalers"):
-    """读取事先持久化的三个 StandardScaler."""
+    
     scalers = {}
     for target in ["Bs", "Hc", "Dc"]:
         with open(Path(dir_path) / f"{target}_scaler.pkl", "rb") as fp:
@@ -22,7 +22,7 @@ def load_model(ckpt_path="MTWAE_latent8.pth", device="cpu"):
 
     raw_state = torch.load(ckpt_path, map_location=device)
 
-    # ---------- 关键：批量替换旧前缀 ----------
+    # 
     key_map = {
         r"^Predicted_Bs_layer\.": "head_Bs.",
         r"^Predicted_Hc_layer\.": "head_Hc.",
