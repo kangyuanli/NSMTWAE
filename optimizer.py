@@ -2,12 +2,12 @@
 import numpy as np
 import torch
 import pandas as pd
-# --- Non‑dominated sorting (版本兼容) -------------------------
+# --- Non‑dominated sorting -------------------------
 try:
-    # 0.6.1 独有
+    
     from pymoo.util.non_dominated_sorting import NonDominatedSorting
 except ModuleNotFoundError:
-    # 0.6.0 及 ≥0.7.x
+    
     from pymoo.util.nds.non_dominated_sorting import NonDominatedSorting
 
 from pymoo.core.problem import Problem
@@ -16,31 +16,26 @@ from pymoo.factory import get_reference_directions, get_termination
 from pymoo.optimize import minimize
 #from pymoo.util.non_dominated_sorting import NonDominatedSorting
 
-# ------------------------ 自定义多目标问题 ------------------------------ #
+
 class MTDesignProblem(Problem):
-    """
-    目标：
-        1) 最大化 Bs      → 转为最小化  -Bs
-        2) 最小化 ln(Hc)
-        3) 最大化 Dc      → 转为最小化  -Dc
-    """
+
     def __init__(self, model, scalers, latent_size=8, sigma=8.0):
         super().__init__(
             n_var=latent_size,
             n_obj=3,
             n_constr=0,
-            xl=np.full(latent_size, -sigma),   # 下界
-            xu=np.full(latent_size,  sigma),   # 上界
+            xl=np.full(latent_size, -sigma),   
+            xu=np.full(latent_size,  sigma),   
             type_var=np.float32,
         )
         self._model = model
         self._scalers = scalers
 
-    # 核心评估函数 -------------------------------------------------------- #
+    
     def _evaluate(self, X, out, *args, **kwargs):
         import streamlit as st, traceback, numpy as np, torch
     
-        try:   # ───────────────────── 正常流程 ──────────────────────────
+        try:   
             device = next(self._model.parameters()).device
             z = torch.from_numpy(X).float().to(device)
     
@@ -49,35 +44,35 @@ class MTDesignProblem(Problem):
                 lnHc = self._model.head_Hc(z).cpu().numpy()     # (n,1)
                 Dc   = self._model.head_Dc(z).cpu().numpy()     # (n,1)
     
-            # 保证仍是二维
+           
             Bs   = self._scalers["Bs"].inverse_transform(Bs)
             lnHc = self._scalers["Hc"].inverse_transform(lnHc)
             Dc   = self._scalers["Dc"].inverse_transform(Dc)
     
-            # 组成目标向量：全部 2‑D → (n,3)
+            
             out["F"] = np.hstack([-Bs, lnHc, -Dc]).astype(np.float64)
     
-        except Exception as e:   # ───────── 把真正报错显示到页面 ─────────
-            st.error(f"🚨 _evaluate 出错: {e}")
+        except Exception as e:   
+            st.error(f"🚨 _evaluate: {e}")
             st.code(traceback.format_exc())
-            raise   # 继续抛出，让算法终止
+            raise   
 
 def _nearest_valid_population(n_desired: int) -> int:
-    # 预生成到 ~2500 的所有 n_points
+    
     import math
     valid = []
     for H in range(1, 100):
         n = math.comb(H + 3 - 1, 3 - 1)
         valid.append(n)
         if n >= 2500: break
-    # 选 >= n_desired 的最小合法值；若超上限就取最大值
+    
     for v in valid:
         if v >= n_desired:
             return v
     return valid[-1]
 
 
-# ------------------------- 对外优化接口 --------------------------------- #
+
 def run_nsga3(
     model,
     scalers,
@@ -87,7 +82,7 @@ def run_nsga3(
     sigma: float = 8.0,
     periodic_table: list[str] | None = None,
 ):
-    """执行 NSGA‑III 优化并返回 *第一条* 非支配前沿及其解码结果。"""
+    
     problem = MTDesignProblem(model, scalers, latent_size=8, sigma=sigma)
 
     pop_size_valid = _nearest_valid_population(pop_size)
@@ -105,11 +100,11 @@ def run_nsga3(
         save_history=False,
     )
 
-    # ---------------------- 非支配筛选 ---------------------------------- #
+    
     nd_idx = NonDominatedSorting().do(res.F, only_non_dominated_front=True)
     Z_nd = res.X[nd_idx]
 
-    # 解码到成分空间
+   
     with torch.no_grad():
         comps = (
             model.decoder(torch.from_numpy(Z_nd).float())
@@ -117,14 +112,14 @@ def run_nsga3(
             .numpy()
         )
 
-    # 重新预测以取到标度后的物性
+   
     with torch.no_grad():
         z_nd_tensor = torch.from_numpy(Z_nd).float()
         Bs = scalers["Bs"].inverse_transform(model.head_Bs(z_nd_tensor).numpy()).ravel()
         lnHc = scalers["Hc"].inverse_transform(model.head_Hc(z_nd_tensor).numpy()).ravel()
         Dc = scalers["Dc"].inverse_transform(model.head_Dc(z_nd_tensor).numpy()).ravel()
 
-    # 组装 DataFrame
+    
     elements = periodic_table or [
         'Fe', 'B', 'Si', 'P', 'C', 'Co', 'Nb', 'Ni', 'Mo', 'Zr',
         'Ga', 'Al', 'Dy', 'Cu', 'Cr', 'Y', 'Nd', 'Hf', 'Ti', 'Tb',
@@ -138,4 +133,5 @@ def run_nsga3(
         "Dc (mm)": Dc,
     })
     return pd.concat([df_props, df_comp], axis=1)
+
 
