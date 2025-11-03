@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 
 class MTWAE(nn.Module):
-    """Multi‑Task Wasserstein Auto‑Encoder (与原实现一致)."""
+    """Multi‑Task Wasserstein Auto‑Encoder"""
 
     def __init__(self, in_features: int = 30, latent_size: int = 8):
         super().__init__()
@@ -30,7 +30,7 @@ class MTWAE(nn.Module):
             nn.Linear(90, in_features),
         )
         # ---------------- Predictors ------------
-        def _make_head():  # 3×完全相同的前馈网络
+        def _make_head():  
             return nn.Sequential(
                 nn.Linear(latent_size, 90), nn.LayerNorm(90), nn.LeakyReLU(),
                 nn.Linear(90, 90), nn.LayerNorm(90), nn.LeakyReLU(),
@@ -56,4 +56,5 @@ class MTWAE(nn.Module):
             "Hc": self.head_Hc(z),
             "Dc": self.head_Dc(z),
         }
+
 
