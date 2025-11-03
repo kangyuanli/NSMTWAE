@@ -36,7 +36,7 @@ def load_model(ckpt_path="MTWAE_latent8.pth", device="cpu"):
             new_key = re.sub(pattern, repl, new_key)
         renamed_state[new_key] = v
 
-    # 载入
+    
     model.load_state_dict(renamed_state, strict=True)
     return model.to(device).eval()
 
