@@ -1,5 +1,5 @@
 # requirements.txt ------------------------------------------------------
-torch==2.4.0          # 与训练环境一致
+torch==2.4.0          
 numpy==2.1.0
 pandas==2.2.2
 scikit-learn==1.5.1
@@ -9,4 +9,5 @@ streamlit==1.38.0
 matplotlib==3.9.2
 seaborn==0.13.2
 tqdm==4.66.4
+
 
