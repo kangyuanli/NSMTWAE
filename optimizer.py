@@ -40,15 +40,19 @@ class MTDesignProblem(Problem):
             z = torch.from_numpy(X).float().to(device)
     
             with torch.no_grad():
-                Bs   = self._model.head_Bs(z).cpu().numpy()     # (n,1)
-                lnHc = self._model.head_Hc(z).cpu().numpy()     # (n,1)
-                Dc   = self._model.head_Dc(z).cpu().numpy()     # (n,1)
+                z = torch.from_numpy(X).float().to(device)
+            
+                x_dec = self._model.decoder(z)         # latent -> composition
+                z_rec = self._model.encoder(x_dec)     # composition -> latent
+            
+                Bs   = self._model.head_Bs(z_rec).cpu().numpy()
+                lnHc = self._model.head_Hc(z_rec).cpu().numpy()
+                Dc   = self._model.head_Dc(z_rec).cpu().numpy()# (n,1)
     
            
             Bs   = self._scalers["Bs"].inverse_transform(Bs)
             lnHc = self._scalers["Hc"].inverse_transform(lnHc)
             Dc   = self._scalers["Dc"].inverse_transform(Dc)
-    
             
             out["F"] = np.hstack([-Bs, lnHc, -Dc]).astype(np.float64)
     
