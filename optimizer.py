@@ -110,18 +110,17 @@ def run_nsga3(
 
    
     with torch.no_grad():
-        comps = (
-            model.decoder(torch.from_numpy(Z_nd).float())
-            .cpu()
-            .numpy()
-        )
+        z_nd_tensor = torch.from_numpy(Z_nd).float()
+        comps = model.decoder(z_nd_tensor).cpu().numpy()
 
    
     with torch.no_grad():
-        z_nd_tensor = torch.from_numpy(Z_nd).float()
-        Bs = scalers["Bs"].inverse_transform(model.head_Bs(z_nd_tensor).numpy()).ravel()
-        lnHc = scalers["Hc"].inverse_transform(model.head_Hc(z_nd_tensor).numpy()).ravel()
-        Dc = scalers["Dc"].inverse_transform(model.head_Dc(z_nd_tensor).numpy()).ravel()
+        x_dec_tensor = torch.from_numpy(comps).float()
+        z_rec = model.encoder(x_dec_tensor)
+    
+        Bs = scalers["Bs"].inverse_transform(model.head_Bs(z_rec).numpy()).ravel()
+        lnHc = scalers["Hc"].inverse_transform(model.head_Hc(z_rec).numpy()).ravel()
+        Dc = scalers["Dc"].inverse_transform(model.head_Dc(z_rec).numpy()).ravel()
 
     
     elements = periodic_table or [
