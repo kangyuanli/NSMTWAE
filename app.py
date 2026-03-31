@@ -27,13 +27,16 @@ ELEMENTS = [
     'Y','Nd','Hf','Ti','Tb','Ho','Ta','Er','Sn','W','Tm','Gd','Sm','V','Pr'
 ]
 
-def row_to_formula(row: pd.Series) -> str:
-    
+def row_to_formula(row: pd.Series, decimals: int = 6, eps: float = 1e-8) -> str:
+    vals = row[ELEMENTS].to_numpy(dtype=float)
+    s = vals.sum()
+    if s > 0:
+        vals = vals / s
+
     comps = []
-    for elem in ELEMENTS:
-        frac = row[elem]
-        if frac > 1e-3:                     
-            comps.append(f"{elem}{frac*100:.2f}")
+    for elem, frac in zip(ELEMENTS, vals):
+        if frac > eps:
+            comps.append(f"{elem}{frac*100:.{decimals}f}")
     return "".join(comps)
 
 def draw_ellipse(ax, x, y, color="lightcoral"):
@@ -68,7 +71,11 @@ if run_btn:
     st.dataframe(df_display, use_container_width=True)
 
     
-    csv = df_display.to_csv(index=False).encode()
+    df_export = df_raw.copy()
+    df_export["Composition_exact"] = df_raw.apply(
+        lambda row: row_to_formula(row, decimals=6, eps=1e-8), axis=1
+    )
+    csv = df_export.to_csv(index=False).encode("utf-8")
     st.download_button("⬇️ Download CSV", csv, "pareto_alloys.csv", mime="text/csv")
 
     
